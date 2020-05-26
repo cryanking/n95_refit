@@ -1,0 +1,249 @@
+---
+output: 
+  bookdown::pdf_document2:
+    fig_caption: true
+    toc: false
+---
+
+```{r echo=FALSE, message=FALSE, results='hide'}
+library(magrittr)
+if(file.exists("n95_intermediates.Rdata"))  {
+load("n95_intermediates.Rdata")
+library("magrittr")
+library("tidyverse")
+library("foreign")
+library("survival")
+library("gridExtra")
+library("rmarkdown")
+library("interval")
+library("cgam")
+library("icenReg")
+library("km.ci")
+library("flexsurv")
+library("bookdown")
+library("tableone")
+} else {
+source("n95_report.R")
+}
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(dev = 'pdf')
+```
+
+## Note
+I will add in references later today.
+
+## Modeling assumptions and strategy
+The sample is generated cross-sectionally, but can also be thought of as survival data.
+Each fit test provides interval censored information: masks observed to fail a fit test at time *t* failed at some point in $\left(0 , t\right)$ (masks are assumed to have been initially functional). 
+Masks that pass the fit test fail some time in the future $(t, t_\textrm{max})$.
+For survival analysis we assume that each mask is independent with failure hazard from from a common distribution.
+Our parametric survival model fits a 3-parameter generalized gamma hazard to the interval censored data.
+
+Nonparametric or semiparametric estimators which do not assume a functional form of the hazard are common in traditional survival analysis, and are available for interval censored data as well.
+However, nonparametric estimates for interval censored data are not unique; in some regions any baseline hazard matching continuity requirements is equally supported by the data.
+Confidence intervals for interval censored baseline hazards are an active area of research, with common estimation methods yielding slow $n^\frac{1}{3}$ convergence without a known asymptotic law.
+
+Modeling the data as cross-sectional observations of fit passing versus failure as a flexible function of time is also supportable because no participant-mask pair is observed more than once and there is minimal information to support extrapolation from before the earliest test time (4 days).
+Integrated b-splines and constrained step functions allow modeling the failure log-odds as a monotone increasing function of time in a traditional logistic regression analysis.
+This approach yields much better studied statistical behavior; however, given the modest sample size the probability statements produced should be taken as approximate.
+The cross-sectional model does not encode any behavior before the earliest test time (e.g. that all masks intitially fit).
+We found that the cross-sectional model and nonparametric and semiparametric survival models yield essentially identical point estimates when tuned appropriately, which is anticipated based on the use of step functions and splines to model the baseline hazard in the survival routines.
+
+Factors beyond use duration were analyzed with proportional hazards regression (interval survival) or logistic regression (cross sectional).
+Calculations were performed in R 3.6.3 with package flexsurv for parametric survival modeling, icenReg for non-parametric survival modeling, and cgam for monotone logistic regression. 
+Reported confidence intervals are at the 0.95 level.
+Because this was an exportatory study, no pre-determined p-value threshold was applied.
+
+## Results
+```{r echo=FALSE}
+cross_fit <- cgam(fit.fail ~ s.incr(Days.Worn) , family=binomial(), data=prelim.df )
+dummy_data <- data.frame(Days.Worn = c(5,10,15))
+dummy_data <- cbind(dummy_data, predict(cross_fit, newData=dummy_data, interval="confidence")[c("fit", "lower", "upper")] %>% as.data.frame )
+```
+
+```{r echo=FALSE, messages=FALSE, results='asis'}
+factor_vars<- c('Sex' , 'Title' , 'respirator', 'Fits.well', 'Mask.quality'  )
+
+con_vars<- c( 'Days.Worn', 'Sterilzations', 'Donned',  'Uses.per.day' )
+tab3 <- CreateTableOne(vars = c(con_vars,factor_vars) , strata = "fit.fail" , data = prelim.df%>%  mutate( Uses.per.day=Donned/Days.Worn ) %>% mutate(fit.fail=factor(fit.fail, labels=c("Pass", "Fail")) ) , factorVars = factor_vars)
+temp <- capture.output(x <- print(tab3 , showAllLevels = TRUE, contDigits=1, printToggle=FALSE))
+x <- x[,seq(ncol(x)-1)]
+    knitr::kable(x, caption="\\label{tab:desc}Descriptive statistics stratified by fit test failure")
+```
+
+Table \@ref(tab:desc) provides descriptive statistics.
+Figure \@ref(fig:hists) displays histograms of number of days worn, number of times used, and number of times steralized.
+Breaking the data into approximately equal sized groups by number of days worn, the failure fraction is displayed in Table \@ref(tab:broken).
+
+```{r echo=FALSE, fig.show="hold", fig.keep="last", fig.cap="\\label{fig:hists}Mask use histograms."}
+par(mfrow=c(3,1), oma=c(0,0,0,0), mar=c(2, 3, 2,0))
+hist(prelim.df  %>% select(Days.Worn) %>% unlist ,breaks = seq(from=3.5, to=20.5), plot=T, main="Days Worn", xlab=NULL, col= rgb(0.6,1.0,1.0,alpha=0.5))
+hist(prelim.df  %>% select(Donned) %>% unlist , breaks=8, plot=T, main="Times used", xlab=NULL, col= rgb(0.6,1.0,1.0,alpha=0.5))
+hist(prelim.df  %>% select(Sterilzations) %>% unlist ,  plot=T, main="Times steralized", xlab=NULL, col= rgb(0.6,1.0,1.0,alpha=0.5))
+par(mfrow=c(1,1))
+```
+
+
+```{r echo=FALSE, results='asis' }
+prelim.df %>% mutate(day_group = cut(Days.Worn, breaks=c(3, 5, 8, 12, 25)) ) %>% group_by(day_group) %>% summarize(n=n() , mean.failure=mean(fit.fail )%>% round(2), lower.conf=prop.test(x=sum(fit.fail), n=n())$conf.int[1]%>% round(2), upper.conf=prop.test(x=sum(fit.fail), n=n())$conf.int[2]%>% round(2) ) %>% {knitr::kable(x=.,format="latex", caption="\\label{tab:broken}Failure rates by duration worn")}
+```
+
+Figure \@ref(fig:basicsurvival) displays mask survival as a function of days worn using cross-sectional approaches.
+A smooth monotone spline and smooth spline can be seen to agree well with nonparametric monotone methods.
+The failure rate at day `r dummy_data[1, "Days.Worn"]%>% as.integer` is `r dummy_data[1, "fit"]%>% round(2)` (95\% CI `r round(dummy_data[1,c("lower", "upper")],2)`). At day `r dummy_data[2, "Days.Worn"]%>% as.integer` the failure has increased to `r dummy_data[2, "fit"]%>% round(2)` (95\% CI `r round(dummy_data[2,c("lower", "upper")],2)`) and day `r dummy_data[3, "Days.Worn"]%>% as.integer` to `r dummy_data[3, "fit"]%>% round(2)` (95\% CI `r round(dummy_data[3,c("lower", "upper")],2)`).
+
+
+```{r echo=FALSE, fig.show="hold", fig.keep="last", fig.cap="\\label{fig:basicsurvival} Comparison of cross sectional logistic regression models for mask Failure by number of days worn. Black = non-parametric monotone (step functions), Red = semiparametric smooth with monotone constraint, Blue = semiparametric smooth (no monotone requirement). Dashed lines 95% pointwise confidence limits. Fit with cgam package."}
+cross_fit <- cgam(fit.fail ~ incr(Days.Worn) , family=binomial(), data=prelim.df )
+dummy_data <- data.frame(Days.Worn = 4:20)
+dummy_data <- cbind(dummy_data, predict(cross_fit, newData=dummy_data, interval="confidence")[c("fit", "lower", "upper")] %>% as.data.frame )
+plot(dummy_data$Days.Worn, dummy_data$fit , xlab="Days worn", ylab="Failure probability", ylim=c(0,1), xlim=c(4,20), type="l")
+lines(dummy_data$Days.Worn, dummy_data$lower, lty=2)
+lines(dummy_data$Days.Worn, dummy_data$upper, lty=2)
+
+cross_fit <- cgam(fit.fail ~ s.incr(Days.Worn) , family=binomial(), data=prelim.df )
+dummy_data <- data.frame(Days.Worn = 4:20)
+dummy_data <- cbind(dummy_data, predict(cross_fit, newData=dummy_data, interval="confidence")[c("fit", "lower", "upper")] %>% as.data.frame )
+points(dummy_data$Days.Worn, dummy_data$fit , col='red', type="l")
+lines(dummy_data$Days.Worn, dummy_data$lower, col='red', lty=2)
+lines(dummy_data$Days.Worn, dummy_data$upper, col='red', lty=2)
+
+
+cross_fit <- glm(fit.fail ~ ns(Days.Worn) , family=binomial(), data=prelim.df )
+dummy_data <- data.frame(Days.Worn = 4:20)
+dummy_data <- cbind(dummy_data, predict(cross_fit, newdata=dummy_data, se.fit=TRUE)[c("fit", "se.fit")] %>% as.data.frame )
+
+points(dummy_data$Days.Worn, cross_fit$family$linkinv(dummy_data$fit) , col='blue', type="l")
+dummy_data %<>% mutate( lower=cross_fit$family$linkinv(fit - 1.96*se.fit), upper=cross_fit$family$linkinv(fit+1.96*se.fit))
+lines(dummy_data$Days.Worn, dummy_data$lower, col='blue', lty=2)
+lines(dummy_data$Days.Worn, dummy_data$upper, col='blue', lty=2)
+```
+
+Figure \@ref(fig:comparesurv) compares interval censored survival-based analyses and the cross-sectional analysis.
+The parametric model diverges from the nonparametric MLE at the extremes of time, as it requires a smoother change between the initial state (0 failure) to the early observed times.
+The choice of parametric family was found to make little difference.
+Figure \@ref(fig:comparepara) displays the results with gompertz and weibull hazards.
+
+
+```{r echo=FALSE, fig.show="hold", fig.keep="last", fig.cap="\\label{fig:comparesurv}Comparison of survival and cross-sectional models for mask failure by number of days worn. Black = non-parametric survival with interval censoring (grey regions = indeterminate MLE), Red = generalized gamma survival model with interval censoring, Blue = cross sectional monotone smooth. Dashed lines 95% pointwise confidence limits. Fit with cgam package."}
+npm_out %>% plot(xlim=c(4,20), XLAB="Days worn", YLAB="Failure probability", dtype="cdf")
+fs_1 <- flexsurvreg(Surv(left, right, type="interval2")~1, data=prelim.df, dist="gengamma")
+cross_fit <- cgam(fit.fail ~ s.incr(Days.Worn) , family=binomial(), data=prelim.df )
+dummy_data <- data.frame(Days.Worn = 4:20)
+dummy_data <- cbind(dummy_data, predict(cross_fit, newData=dummy_data, interval="confidence")[c("fit", "lower", "upper")] %>% as.data.frame )
+lines(dummy_data$Days.Worn, dummy_data$fit , col='blue', lwd=2)
+lines(dummy_data$Days.Worn, dummy_data$lower, col='blue', lty=2)
+lines(dummy_data$Days.Worn, dummy_data$upper, col='blue', lty=2)
+
+failure_probs<- summary(fs_1, type="survival", t=4:20, se=TRUE, ci=TRUE)[[1]]
+
+lines(failure_probs$time, 1-failure_probs$est, col="red")
+lines(failure_probs$time, 1-failure_probs$lcl, col="red", lty=2)
+lines(failure_probs$time, 1-failure_probs$ucl, col="red", lty=2)
+```
+
+```{r echo=FALSE, fig.show="hold", warning=FALSE , message=FALSE, fig.keep="last", fig.cap="\\label{fig:comparepara}Comparison of parametric family survival models. Black = non-parametric survival (grey regions = indeterminate MLE), Red = generalized gamma survival, Blue = gompertz, Green = Weibull. Dashed lines 95% pointwise confidence limits. Fit with cgam package."}
+npm_out %>% plot(xlim=c(4,20), XLAB="Days worn", YLAB="Failure probability", dtype="cdf")
+lines(failure_probs$time, 1-failure_probs$est, col="red")
+lines(failure_probs$time, 1-failure_probs$lcl, col="red", lty=2)
+lines(failure_probs$time, 1-failure_probs$ucl, col="red", lty=2)
+fs_1 <- flexsurvreg(Surv(left, right, type="interval2")~1, data = prelim.df, dist="gompertz")
+
+failure_probs<- summary(fs_1, type="survival", t=4:20, se=TRUE, ci=TRUE)[[1]]
+lines(failure_probs$time, 1-failure_probs$est, col="blue")
+lines(failure_probs$time, 1-failure_probs$lcl, col="blue", lty=2)
+lines(failure_probs$time, 1-failure_probs$ucl, col="blue", lty=2)
+
+
+fs_1 <- flexsurvreg(Surv(left, right, type="interval2")~1, data = prelim.df, dist="weibull")
+
+failure_probs<- summary(fs_1, type="survival", t=4:20, se=TRUE, ci=TRUE)[[1]]
+lines(failure_probs$time, 1-failure_probs$est, col="green")
+lines(failure_probs$time, 1-failure_probs$lcl, col="green", lty=2)
+lines(failure_probs$time, 1-failure_probs$ucl, col="green", lty=2)
+```
+
+We also computed a traditional Kaplan-Meier curve treating the data as right censored only (assuming that participants joined the experiment about when their masks failed).
+This is displayed in Figure \@ref(fig:comparekm), which shows much lower estimated early failure rates as the later failures are no longer considered a possible early failure.
+
+```{r echo=FALSE, fig.show="hold", warning=FALSE , message=FALSE, fig.keep="last", fig.cap="\\label{fig:comparekm}Comparison of interval censored and traditional survicval estimates of mask failure by number of days worn. Black = non-parametric interval censored survival (grey regions = indeterminate MLE), Red = right censored only (Kaplan-Meier)"}
+npm_out %>% plot(xlim=c(4,20), XLAB="Days worn", YLAB="Failure probability", dtype="cdf")
+
+lines(km.ci(survfit(Surv(time=Days.Worn, event=fit.fail)~1, data=prelim.df) ), col='red', fun='F')
+```
+
+Similar analyis for failure by number of times donned is shown in Figure \@ref(fig:comparedon).
+The failure rate is similarly flat.
+
+
+```{r echo=FALSE, fig.show="hold", warning=FALSE , message=FALSE, fig.keep="last", fig.cap="\\label{fig:comparedon}Comparison of survival and cross sectonal models for mask failure by number of times used. Black = non-parametric interval censored survival (grey regions = indeterminate MLE), Red = smooth cross-sectional analysis, Blue = generalized gamma survival"}
+npm_out2 %>% plot(xlim=c(6,50), XLAB="Times used", YLAB="Failure probability", dtype="cdf")
+fs_1 <- flexsurvreg(Surv(left, right, type="interval2")~1, dist="gengamma", data=prelim.df2)
+failure_probs<- summary(fs_1, type="survival", t=6:50, se=TRUE, ci=TRUE)[[1]]
+
+lines(failure_probs$time, 1-failure_probs$est, col="blue")
+lines(failure_probs$time, 1-failure_probs$lcl, col="blue", lty=2)
+lines(failure_probs$time, 1-failure_probs$ucl, col="blue", lty=2)
+
+cross_fit3 <- cgam(fit.fail ~ s.incr(Donned) , family=binomial(), data=prelim.df )
+dummy_data <- data.frame(Donned = 6:50)
+dummy_data <- cbind(dummy_data, predict(cross_fit3, newData=dummy_data, interval="confidence")[c("fit", "lower", "upper")] %>% as.data.frame )
+lines(dummy_data$Donned, dummy_data$fit , col='red', lwd=2)
+lines(dummy_data$Donned, dummy_data$lower, col='red', lty=2)
+lines(dummy_data$Donned, dummy_data$upper, col='red', lty=2)
+```
+```{r echo=FALSE}
+cross_fit <- glm(fit.fail ~ ns(Days.Worn) , family=binomial(), data=prelim.df )
+cross_fit2 <- glm(fit.fail ~ ns(Days.Worn) +Sterilzations  , family=binomial(), data=prelim.df )
+basic <- glm(fit.fail ~ Sterilzations , family=binomial(), data=prelim.df )
+cross_fit3 <- glm(fit.fail ~ ns(Days.Worn) +I(Donned/Days.Worn)  , family=binomial(), data=prelim.df )
+
+t1 <- np_reg %>% summary %>% extract2("summaryParameters") %>% as.vector %>% extract2(1) 
+t2 <- np_reg %>% summary %>% extract2("summaryParameters") %>% as.vector %>% extract2(3) 
+t3 <- np_reg2b %>% summary %>% extract2("summaryParameters") %>% as.vector %>% extract2(1)
+t4 <- np_reg2b %>% summary %>% extract2("summaryParameters") %>% as.vector %>% extract2(3) 
+
+```
+
+Alternative factors contributing to fit failure analyzed included number of sterilizations and intensity of use (number of times donned per day). 
+Using the logistic regression model, the number of sterilizations was found to have a modest effect with modest precision (OR `r cross_fit2 %>% coefficients %>% as.vector %>% extract2(3) %>% exp %>% round(1)` 95\% CI `r cross_fit2 %>% confint %>% magrittr::extract(3,1:2) %>% exp %>% round(1) %>% unname`).
+The number of times donned per day was found to have a negligible effect with modest precision (OR `r cross_fit3 %>% coefficients %>% as.vector %>% extract2(3) %>% exp %>% round(1)` 95\% CI `r cross_fit3 %>% confint %>% magrittr::extract(3,1:2) %>% exp %>% round(1) %>% unname`).
+In cox analysis, the number of sterilizations was found to have a small effect with modest precision (cox B =`r t1 %>% round(2)`, 95\% CI `r t1 %>% subtract(1.96*t2) %>% round(2) ` to  `r t1 %>% add(1.96*t2) %>% round(2) ` ).
+The number of times donned per day was found to have a negligible effect with modest precision (cox B =`r t3 %>% round(2)`, 95\% CI `r t3 %>% subtract(1.96*t4) %>% round(2) ` to  `r t3 %>% add(1.96*t4) %>% round(2) ` ).
+Similar results were obtained with cross sectional analysis.
+
+
+```{r echo=FALSE}
+local_data <- prelim.df %>% group_by(Fits.well) %>% summarize(mfit=mean(fit.fail ), nfit=n())
+```
+Although imperfect, participants were able to somewhat discriminate poorly fitting masks.
+Figure \@ref(fig:split) displays the survival by perceived fit.
+Among the `r local_data[1,3]` participants reporting a poor fit, `r local_data[1,2] %>% round(2) %>% multiply_by(100)`% failed the fit test.
+Among the `r local_data[2,3]` participants reporting a good fit, `r local_data[2,2] %>% round(2)%>% multiply_by(100)`% failed the fit test (p= `r fisher.test(prelim.df$Fits.well, prelim.df$fit.fail) %>% extract2("p.value") %>% format.pval(digits=2)` by Fisher's exact test).
+
+
+```{r echo=FALSE, fig.show="hold", warning=FALSE , message=FALSE, fig.keep="last", fig.cap="\\label{fig:split}Comparison of mask failure by days worn stratified by user perceived fit. Black = entire study non-parametric interval censored survival (grey regions = indeterminate MLE), Red= smooth cross-sectional model among self-perceived good fit, Blue = smooth cross-sectional model among self-perceived bad fit "}
+cross_fit2 <- cgam(fit.fail ~ s.incr(Days.Worn)*Fits.well  , family=binomial(), data=prelim.df )
+
+npm_out %>% plot(xlim=c(4,20), XLAB="Days worn", YLAB="Failure probability", dtype="cdf")
+
+dummy_data <- data.frame(Days.Worn = 4:20 , Fits.well =prelim.df$Fits.well %>% unique %>% magrittr::extract(1) )
+dummy_data <- cbind(dummy_data, predict(cross_fit2, newData=dummy_data, interval="confidence")[c("fit", "lower", "upper")] %>% as.data.frame )
+lines(dummy_data$Days.Worn, dummy_data$fit , col='red', lwd=2)
+lines(dummy_data$Days.Worn, dummy_data$lower, col='red', lty=2)
+lines(dummy_data$Days.Worn, dummy_data$upper, col='red', lty=2)
+
+dummy_data <- data.frame(Days.Worn = 4:20 , Fits.well =prelim.df$Fits.well %>% unique %>% magrittr::extract(2) )
+dummy_data <- cbind(dummy_data, predict(cross_fit2, newData=dummy_data, interval="confidence")[c("fit", "lower", "upper")] %>% as.data.frame )
+lines(dummy_data$Days.Worn, dummy_data$fit , col='blue', lwd=2)
+lines(dummy_data$Days.Worn, dummy_data$lower, col='blue', lty=2)
+lines(dummy_data$Days.Worn, dummy_data$upper, col='blue', lty=2)
+```
+
+
+
+
+
+
