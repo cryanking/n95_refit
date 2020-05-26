@@ -41,20 +41,20 @@ Masks that pass the fit test fail some time in the future $(t, t_\textrm{max})$.
 For survival analysis we assume that each mask is independent with failure hazard from from a common distribution.
 Our parametric survival model fits a 3-parameter generalized gamma hazard to the interval censored data.
 
-Nonparametric or semiparametric estimators which do not assume a functional form of the hazard are common in traditional survival analysis, and are available for interval censored data as well.
-However, nonparametric estimates for interval censored data are not unique; in some regions any baseline hazard matching continuity requirements is equally supported by the data.
+Non-parametric or semi-parametric estimators which do not assume a functional form of the hazard are common in traditional survival analysis, and are available for interval censored data as well.
+However, non-parametric estimates for interval censored data are not unique; in some regions any baseline hazard matching continuity requirements is equally supported by the data.
 Confidence intervals for interval censored baseline hazards are an active area of research, with common estimation methods yielding slow $n^\frac{1}{3}$ convergence without a known asymptotic law.
 
 Modeling the data as cross-sectional observations of fit passing versus failure as a flexible function of time is also supportable because no participant-mask pair is observed more than once and there is minimal information to support extrapolation from before the earliest test time (4 days).
 Integrated b-splines and constrained step functions allow modeling the failure log-odds as a monotone increasing function of time in a traditional logistic regression analysis.
 This approach yields much better studied statistical behavior; however, given the modest sample size the probability statements produced should be taken as approximate.
-The cross-sectional model does not encode any behavior before the earliest test time (e.g. that all masks intitially fit).
-We found that the cross-sectional model and nonparametric and semiparametric survival models yield essentially identical point estimates when tuned appropriately, which is anticipated based on the use of step functions and splines to model the baseline hazard in the survival routines.
+The cross-sectional model does not encode any behavior before the earliest test time (e.g. that all masks initially fit).
+We found that the cross-sectional model and non-parametric and semi-parametric survival models yield essentially identical point estimates when tuned appropriately, which is anticipated based on the use of step functions and splines to model the baseline hazard in the survival routines.
 
 Factors beyond use duration were analyzed with proportional hazards regression (interval survival) or logistic regression (cross sectional).
 Calculations were performed in R 3.6.3 with package flexsurv for parametric survival modeling, icenReg for non-parametric survival modeling, and cgam for monotone logistic regression. 
 Reported confidence intervals are at the 0.95 level.
-Because this was an exportatory study, no pre-determined p-value threshold was applied.
+Because this was an exploratory study, no per-determined p-value threshold was applied.
 
 ## Results
 ```{r echo=FALSE}
@@ -74,14 +74,14 @@ x <- x[,seq(ncol(x)-1)]
 ```
 
 Table \@ref(tab:desc) provides descriptive statistics.
-Figure \@ref(fig:hists) displays histograms of number of days worn, number of times used, and number of times steralized.
+Figure \@ref(fig:hists) displays histograms of number of days worn, number of times used, and number of times sterilized.
 Breaking the data into approximately equal sized groups by number of days worn, the failure fraction is displayed in Table \@ref(tab:broken).
 
 ```{r echo=FALSE, fig.show="hold", fig.keep="last", fig.cap="\\label{fig:hists}Mask use histograms."}
 par(mfrow=c(3,1), oma=c(0,0,0,0), mar=c(2, 3, 2,0))
 hist(prelim.df  %>% select(Days.Worn) %>% unlist ,breaks = seq(from=3.5, to=20.5), plot=T, main="Days Worn", xlab=NULL, col= rgb(0.6,1.0,1.0,alpha=0.5))
 hist(prelim.df  %>% select(Donned) %>% unlist , breaks=8, plot=T, main="Times used", xlab=NULL, col= rgb(0.6,1.0,1.0,alpha=0.5))
-hist(prelim.df  %>% select(Sterilzations) %>% unlist ,  plot=T, main="Times steralized", xlab=NULL, col= rgb(0.6,1.0,1.0,alpha=0.5))
+hist(prelim.df  %>% select(Sterilzations) %>% unlist ,  plot=T, main="Times sterilized", xlab=NULL, col= rgb(0.6,1.0,1.0,alpha=0.5))
 par(mfrow=c(1,1))
 ```
 
@@ -91,11 +91,11 @@ prelim.df %>% mutate(day_group = cut(Days.Worn, breaks=c(3, 5, 8, 12, 25)) ) %>%
 ```
 
 Figure \@ref(fig:basicsurvival) displays mask survival as a function of days worn using cross-sectional approaches.
-A smooth monotone spline and smooth spline can be seen to agree well with nonparametric monotone methods.
+A smooth monotone spline and smooth spline can be seen to agree well with non-parametric monotone methods.
 The failure rate at day `r dummy_data[1, "Days.Worn"]%>% as.integer` is `r dummy_data[1, "fit"]%>% round(2)` (95\% CI `r round(dummy_data[1,c("lower", "upper")],2)`). At day `r dummy_data[2, "Days.Worn"]%>% as.integer` the failure has increased to `r dummy_data[2, "fit"]%>% round(2)` (95\% CI `r round(dummy_data[2,c("lower", "upper")],2)`) and day `r dummy_data[3, "Days.Worn"]%>% as.integer` to `r dummy_data[3, "fit"]%>% round(2)` (95\% CI `r round(dummy_data[3,c("lower", "upper")],2)`).
 
 
-```{r echo=FALSE, fig.show="hold", fig.keep="last", fig.cap="\\label{fig:basicsurvival} Comparison of cross sectional logistic regression models for mask Failure by number of days worn. Black = non-parametric monotone (step functions), Red = semiparametric smooth with monotone constraint, Blue = semiparametric smooth (no monotone requirement). Dashed lines 95% pointwise confidence limits. Fit with cgam package."}
+```{r echo=FALSE, fig.show="hold", fig.keep="last", fig.cap="\\label{fig:basicsurvival} Comparison of cross sectional logistic regression models for mask Failure by number of days worn. Black = non-parametric monotone (step functions), Red = semi-parametric smooth with monotone constraint, Blue = semi-parametric smooth (no monotone requirement). Dashed lines 95% point-wise confidence limits. Fit with cgam package."}
 cross_fit <- cgam(fit.fail ~ incr(Days.Worn) , family=binomial(), data=prelim.df )
 dummy_data <- data.frame(Days.Worn = 4:20)
 dummy_data <- cbind(dummy_data, predict(cross_fit, newData=dummy_data, interval="confidence")[c("fit", "lower", "upper")] %>% as.data.frame )
@@ -122,12 +122,12 @@ lines(dummy_data$Days.Worn, dummy_data$upper, col='blue', lty=2)
 ```
 
 Figure \@ref(fig:comparesurv) compares interval censored survival-based analyses and the cross-sectional analysis.
-The parametric model diverges from the nonparametric MLE at the extremes of time, as it requires a smoother change between the initial state (0 failure) to the early observed times.
+The parametric model diverges from the non-parametric MLE at the extremes of time, as it requires a smoother change between the initial state (0 failure) to the early observed times.
 The choice of parametric family was found to make little difference.
 Figure \@ref(fig:comparepara) displays the results with gompertz and weibull hazards.
 
 
-```{r echo=FALSE, fig.show="hold", fig.keep="last", fig.cap="\\label{fig:comparesurv}Comparison of survival and cross-sectional models for mask failure by number of days worn. Black = non-parametric survival with interval censoring (grey regions = indeterminate MLE), Red = generalized gamma survival model with interval censoring, Blue = cross sectional monotone smooth. Dashed lines 95% pointwise confidence limits. Fit with cgam package."}
+```{r echo=FALSE, fig.show="hold", fig.keep="last", fig.cap="\\label{fig:comparesurv}Comparison of survival and cross-sectional models for mask failure by number of days worn. Black = non-parametric survival with interval censoring (grey regions = indeterminate MLE), Red = generalized gamma survival model with interval censoring, Blue = cross sectional monotone smooth. Dashed lines 95% point-wise confidence limits. Fit with cgam package."}
 npm_out %>% plot(xlim=c(4,20), XLAB="Days worn", YLAB="Failure probability", dtype="cdf")
 fs_1 <- flexsurvreg(Surv(left, right, type="interval2")~1, data=prelim.df, dist="gengamma")
 cross_fit <- cgam(fit.fail ~ s.incr(Days.Worn) , family=binomial(), data=prelim.df )
@@ -144,7 +144,7 @@ lines(failure_probs$time, 1-failure_probs$lcl, col="red", lty=2)
 lines(failure_probs$time, 1-failure_probs$ucl, col="red", lty=2)
 ```
 
-```{r echo=FALSE, fig.show="hold", warning=FALSE , message=FALSE, fig.keep="last", fig.cap="\\label{fig:comparepara}Comparison of parametric family survival models. Black = non-parametric survival (grey regions = indeterminate MLE), Red = generalized gamma survival, Blue = gompertz, Green = Weibull. Dashed lines 95% pointwise confidence limits. Fit with cgam package."}
+```{r echo=FALSE, fig.show="hold", warning=FALSE , message=FALSE, fig.keep="last", fig.cap="\\label{fig:comparepara}Comparison of parametric family survival models. Black = non-parametric survival (grey regions = indeterminate MLE), Red = generalized gamma survival, Blue = gompertz, Green = Weibull. Dashed lines 95% point-wise confidence limits. Fit with cgam package."}
 npm_out %>% plot(xlim=c(4,20), XLAB="Days worn", YLAB="Failure probability", dtype="cdf")
 lines(failure_probs$time, 1-failure_probs$est, col="red")
 lines(failure_probs$time, 1-failure_probs$lcl, col="red", lty=2)
@@ -168,17 +168,17 @@ lines(failure_probs$time, 1-failure_probs$ucl, col="green", lty=2)
 We also computed a traditional Kaplan-Meier curve treating the data as right censored only (assuming that participants joined the experiment about when their masks failed).
 This is displayed in Figure \@ref(fig:comparekm), which shows much lower estimated early failure rates as the later failures are no longer considered a possible early failure.
 
-```{r echo=FALSE, fig.show="hold", warning=FALSE , message=FALSE, fig.keep="last", fig.cap="\\label{fig:comparekm}Comparison of interval censored and traditional survicval estimates of mask failure by number of days worn. Black = non-parametric interval censored survival (grey regions = indeterminate MLE), Red = right censored only (Kaplan-Meier)"}
+```{r echo=FALSE, fig.show="hold", warning=FALSE , message=FALSE, fig.keep="last", fig.cap="\\label{fig:comparekm}Comparison of interval censored and traditional survival estimates of mask failure by number of days worn. Black = non-parametric interval censored survival (grey regions = indeterminate MLE), Red = right censored only (Kaplan-Meier)"}
 npm_out %>% plot(xlim=c(4,20), XLAB="Days worn", YLAB="Failure probability", dtype="cdf")
 
 lines(km.ci(survfit(Surv(time=Days.Worn, event=fit.fail)~1, data=prelim.df) ), col='red', fun='F')
 ```
 
-Similar analyis for failure by number of times donned is shown in Figure \@ref(fig:comparedon).
+Similar analysis for failure by number of times donned is shown in Figure \@ref(fig:comparedon).
 The failure rate is similarly flat.
 
 
-```{r echo=FALSE, fig.show="hold", warning=FALSE , message=FALSE, fig.keep="last", fig.cap="\\label{fig:comparedon}Comparison of survival and cross sectonal models for mask failure by number of times used. Black = non-parametric interval censored survival (grey regions = indeterminate MLE), Red = smooth cross-sectional analysis, Blue = generalized gamma survival"}
+```{r echo=FALSE, fig.show="hold", warning=FALSE , message=FALSE, fig.keep="last", fig.cap="\\label{fig:comparedon}Comparison of survival and cross sectional models for mask failure by number of times used. Black = non-parametric interval censored survival (grey regions = indeterminate MLE), Red = smooth cross-sectional analysis, Blue = generalized gamma survival"}
 npm_out2 %>% plot(xlim=c(6,50), XLAB="Times used", YLAB="Failure probability", dtype="cdf")
 fs_1 <- flexsurvreg(Surv(left, right, type="interval2")~1, dist="gengamma", data=prelim.df2)
 failure_probs<- summary(fs_1, type="survival", t=6:50, se=TRUE, ci=TRUE)[[1]]
