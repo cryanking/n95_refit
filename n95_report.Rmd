@@ -3,6 +3,20 @@ output:
   bookdown::pdf_document2:
     fig_caption: true
     toc: false
+title: "Web Appendix for Probability of Fit Failure with Reuse of N95 Respirators"
+author: 
+ - Bruno Maranhao, MD PhD
+ - Alex W Scott, MD
+ - "Jooyoung Maeng, MD"
+ - "Ziyan Song, MD"
+ - "Ramya Baddigam, MD"
+ - "Molly McCormick, MD"
+ - "Ivan Kangrga, MD PhD"
+ - "C Ryan King, MD PhD"
+ - "Ryan Guffey, MD"
+
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+bibliography: n95.bib
 ---
 
 ```{r echo=FALSE, message=FALSE, results='hide'}
@@ -11,9 +25,7 @@ if(file.exists("n95_intermediates.Rdata"))  {
 load("n95_intermediates.Rdata")
 library("magrittr")
 library("tidyverse")
-library("foreign")
 library("survival")
-library("gridExtra")
 library("rmarkdown")
 library("interval")
 library("cgam")
@@ -32,9 +44,9 @@ knitr::opts_chunk$set(dev = 'pdf')
 ```
 
 ## Note
-I will add in references later today.
+This is a work in progress.
 
-## Modeling assumptions and strategy
+# Modeling assumptions and strategy
 The sample is generated cross-sectionally, but can also be thought of as survival data.
 Each fit test provides interval censored information: masks observed to fail a fit test at time *t* failed at some point in $\left(0 , t\right)$ (masks are assumed to have been initially functional). 
 Masks that pass the fit test fail some time in the future $(t, t_\textrm{max})$.
@@ -42,21 +54,22 @@ For survival analysis we assume that each mask is independent with failure hazar
 Our parametric survival model fits a 3-parameter generalized gamma hazard to the interval censored data.
 
 Non-parametric or semi-parametric estimators which do not assume a functional form of the hazard are common in traditional survival analysis, and are available for interval censored data as well.
-However, non-parametric estimates for interval censored data are not unique; in some regions any baseline hazard matching continuity requirements is equally supported by the data.
-Confidence intervals for interval censored baseline hazards are an active area of research, with common estimation methods yielding slow $n^\frac{1}{3}$ convergence without a known asymptotic law.
+However, non-parametric estimates (NPMLE) for interval censored data are not unique; in some regions any baseline hazard matching continuity requirements is equally supported by the data.
+Confidence intervals for interval censored baseline hazards are an active area of research [@wang_flexible_2016; @zhao_simultaneous_2019], with completely non-parametric estimation methods yielding slow $n^\frac{1}{3}$ convergence without a known asymptotic law [@groeneboom_information_1992].
+Several semi-parametric methods have recently been shown to have $n^\frac{1}{2}$ convergence with Gaussian asymptotics making them amenable to bootstrapping [@wang_flexible_2016; @bouaziz_regression_2018; @zhao_simultaneous_2019; @li_adaptive_2019].
 
-Modeling the data as cross-sectional observations of fit passing versus failure as a flexible function of time is also supportable because no participant-mask pair is observed more than once and there is minimal information to support extrapolation from before the earliest test time (4 days).
+Modeling the data as cross-sectional observations of fit passing versus failure as a function of time is also supportable because no participant-mask pair is observed more than once and there is minimal information to support extrapolation from before the earliest test time (4 days).
 Integrated b-splines and constrained step functions allow modeling the failure log-odds as a monotone increasing function of time in a traditional logistic regression analysis.
 This approach yields much better studied statistical behavior; however, given the modest sample size the probability statements produced should be taken as approximate.
 The cross-sectional model does not encode any behavior before the earliest test time (e.g. that all masks initially fit).
 We found that the cross-sectional model and non-parametric and semi-parametric survival models yield essentially identical point estimates when tuned appropriately, which is anticipated based on the use of step functions and splines to model the baseline hazard in the survival routines.
 
 Factors beyond use duration were analyzed with proportional hazards regression (interval survival) or logistic regression (cross sectional).
-Calculations were performed in R 3.6.3 with package flexsurv for parametric survival modeling, icenReg for non-parametric survival modeling, and cgam for monotone logistic regression. 
+Calculations were performed in R 3.6.3 with package flexsurv [@jackson_flexsurv_2016] for parametric survival modeling, icenReg [@anderson-bergman_icenreg_2017] for non-parametric survival modeling, and cgam [@liao_cgam_2019] for monotone logistic regression. 
 Reported confidence intervals are at the 0.95 level.
-Because this was an exploratory study, no per-determined p-value threshold was applied.
+Because this was an exploratory study, no pre-determined p-value threshold was applied.
 
-## Results
+# Results
 ```{r echo=FALSE}
 cross_fit <- cgam(fit.fail ~ s.incr(Days.Worn) , family=binomial(), data=prelim.df )
 dummy_data <- data.frame(Days.Worn = c(5,10,15))
@@ -66,7 +79,7 @@ dummy_data <- cbind(dummy_data, predict(cross_fit, newData=dummy_data, interval=
 ```{r echo=FALSE, messages=FALSE, results='asis'}
 factor_vars<- c('Sex' , 'Title' , 'respirator', 'Fits.well', 'Mask.quality'  )
 
-con_vars<- c( 'Days.Worn', 'Sterilzations', 'Donned',  'Uses.per.day' )
+con_vars<- c( 'Days.Worn', 'Sterilizations', 'Donned',  'Uses.per.day' )
 tab3 <- CreateTableOne(vars = c(con_vars,factor_vars) , strata = "fit.fail" , data = prelim.df%>%  mutate( Uses.per.day=Donned/Days.Worn ) %>% mutate(fit.fail=factor(fit.fail, labels=c("Pass", "Fail")) ) , factorVars = factor_vars)
 temp <- capture.output(x <- print(tab3 , showAllLevels = TRUE, contDigits=1, printToggle=FALSE))
 x <- x[,seq(ncol(x)-1)]
@@ -76,12 +89,13 @@ x <- x[,seq(ncol(x)-1)]
 Table \@ref(tab:desc) provides descriptive statistics.
 Figure \@ref(fig:hists) displays histograms of number of days worn, number of times used, and number of times sterilized.
 Breaking the data into approximately equal sized groups by number of days worn, the failure fraction is displayed in Table \@ref(tab:broken).
+Table \@ref(tab:broken) shows that the failure rate at all times is high; approximately 50% in all time categories.
 
 ```{r echo=FALSE, fig.show="hold", fig.keep="last", fig.cap="\\label{fig:hists}Mask use histograms."}
 par(mfrow=c(3,1), oma=c(0,0,0,0), mar=c(2, 3, 2,0))
 hist(prelim.df  %>% select(Days.Worn) %>% unlist ,breaks = seq(from=3.5, to=20.5), plot=T, main="Days Worn", xlab=NULL, col= rgb(0.6,1.0,1.0,alpha=0.5))
 hist(prelim.df  %>% select(Donned) %>% unlist , breaks=8, plot=T, main="Times used", xlab=NULL, col= rgb(0.6,1.0,1.0,alpha=0.5))
-hist(prelim.df  %>% select(Sterilzations) %>% unlist ,  plot=T, main="Times sterilized", xlab=NULL, col= rgb(0.6,1.0,1.0,alpha=0.5))
+hist(prelim.df  %>% select(Sterilizations) %>% unlist ,  plot=T, main="Times sterilized", xlab=NULL, col= rgb(0.6,1.0,1.0,alpha=0.5))
 par(mfrow=c(1,1))
 ```
 
@@ -127,7 +141,7 @@ The choice of parametric family was found to make little difference.
 Figure \@ref(fig:comparepara) displays the results with gompertz and weibull hazards.
 
 
-```{r echo=FALSE, fig.show="hold", fig.keep="last", fig.cap="\\label{fig:comparesurv}Comparison of survival and cross-sectional models for mask failure by number of days worn. Black = non-parametric survival with interval censoring (grey regions = indeterminate MLE), Red = generalized gamma survival model with interval censoring, Blue = cross sectional monotone smooth. Dashed lines 95% point-wise confidence limits. Fit with cgam package."}
+```{r echo=FALSE, fig.show="hold", fig.keep="last", fig.cap="\\label{fig:comparesurv}Comparison of survival and cross-sectional models for mask failure by number of days worn. Black = non-parametric survival with interval censoring (grey regions = indeterminate MLE), Red = generalized gamma survival model with interval censoring, Blue = cross sectional monotone smooth. Dashed lines 95% point-wise confidence limits. "}
 npm_out %>% plot(xlim=c(4,20), XLAB="Days worn", YLAB="Failure probability", dtype="cdf")
 fs_1 <- flexsurvreg(Surv(left, right, type="interval2")~1, data=prelim.df, dist="gengamma")
 cross_fit <- cgam(fit.fail ~ s.incr(Days.Worn) , family=binomial(), data=prelim.df )
@@ -196,8 +210,8 @@ lines(dummy_data$Donned, dummy_data$upper, col='red', lty=2)
 ```
 ```{r echo=FALSE}
 cross_fit <- glm(fit.fail ~ ns(Days.Worn) , family=binomial(), data=prelim.df )
-cross_fit2 <- glm(fit.fail ~ ns(Days.Worn) +Sterilzations  , family=binomial(), data=prelim.df )
-basic <- glm(fit.fail ~ Sterilzations , family=binomial(), data=prelim.df )
+cross_fit2 <- glm(fit.fail ~ ns(Days.Worn) +Sterilizations  , family=binomial(), data=prelim.df )
+basic <- glm(fit.fail ~ Sterilizations , family=binomial(), data=prelim.df )
 cross_fit3 <- glm(fit.fail ~ ns(Days.Worn) +I(Donned/Days.Worn)  , family=binomial(), data=prelim.df )
 
 t1 <- np_reg %>% summary %>% extract2("summaryParameters") %>% as.vector %>% extract2(1) 
@@ -212,14 +226,13 @@ Using the logistic regression model, the number of sterilizations was found to h
 The number of times donned per day was found to have a negligible effect with modest precision (OR `r cross_fit3 %>% coefficients %>% as.vector %>% extract2(3) %>% exp %>% round(1)` 95\% CI `r cross_fit3 %>% confint %>% magrittr::extract(3,1:2) %>% exp %>% round(1) %>% unname`).
 In cox analysis, the number of sterilizations was found to have a small effect with modest precision (cox B =`r t1 %>% round(2)`, 95\% CI `r t1 %>% subtract(1.96*t2) %>% round(2) ` to  `r t1 %>% add(1.96*t2) %>% round(2) ` ).
 The number of times donned per day was found to have a negligible effect with modest precision (cox B =`r t3 %>% round(2)`, 95\% CI `r t3 %>% subtract(1.96*t4) %>% round(2) ` to  `r t3 %>% add(1.96*t4) %>% round(2) ` ).
-Similar results were obtained with cross sectional analysis.
 
 
 ```{r echo=FALSE}
 local_data <- prelim.df %>% group_by(Fits.well) %>% summarize(mfit=mean(fit.fail ), nfit=n())
 ```
 Although imperfect, participants were able to somewhat discriminate poorly fitting masks.
-Figure \@ref(fig:split) displays the survival by perceived fit.
+Figure \@ref(fig:split) displays the survival stratified by perceived fit.
 Among the `r local_data[1,3]` participants reporting a poor fit, `r local_data[1,2] %>% round(2) %>% multiply_by(100)`% failed the fit test.
 Among the `r local_data[2,3]` participants reporting a good fit, `r local_data[2,2] %>% round(2)%>% multiply_by(100)`% failed the fit test (p= `r fisher.test(prelim.df$Fits.well, prelim.df$fit.fail) %>% extract2("p.value") %>% format.pval(digits=2)` by Fisher's exact test).
 
@@ -242,7 +255,23 @@ lines(dummy_data$Days.Worn, dummy_data$lower, col='blue', lty=2)
 lines(dummy_data$Days.Worn, dummy_data$upper, col='blue', lty=2)
 ```
 
+# Conclusions
 
+In this data, mask fit failure was high for all duration of use and varied minimally by duration and number of uses.
+This surprising finding has several potential explanations.
+First and most concerning, mask fit failure could occur early in the use cycle among those where it will fail.
+Use patterns or facial morphology may tend to early failure, while others are able to maintain a good fit for long duration of use.
+Alternatively, our results could be generated if fit test failure were poorly measured (false failures) or related to inappropriate donning during the test, which would produce a uniform failure rate.
+Our re-testing protocol where individuals given new masks immediately after a failed fit uniformly passed the fit test makes inappropriate donning or test error a less likely explanation.
+Strong selection bias where individuals joined the study when they believed their mask failed could generate similar uniform failure rates, but is not consistent with the majority of participants believing their mask fit was acceptable.
+If failed masks were removed from the population before the experiment, the failure fraction would tend to be artificially decreased (or made more uniform).
+However, during the period of the study our institution had little ability to replace N95 masks, and they were carefully rationed.
+As seen in Figure \@ref(fig:hists), individuals continued to use masks for long durations even before sterilization was available, suggesting that failed masks were not readily discarded.
+
+Additional data is urgently needed to address the potential for early mask failures, and potential prediction of early mask failure.
+This would allow rational re-fit testing protocols with much less burden than systematically retesting all healthcare workers exposed to aerosols.
+
+# References
 
 
 

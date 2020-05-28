@@ -1,15 +1,18 @@
 library(magrittr)
 library(tidyverse)
-library(foreign)
 library(survival)
-library(gridExtra)
-library(rmarkdown)
 library("interval")
 library(cgam)
 library(icenReg)
 library("km.ci")
 library(flexsurv)
+library(tableone)
 
+missing_packages <- setdiff(c("caret", "tableone", "rmarkdown", "knitr", "bookdown") , rownames(installed.packages() ) ) 
+
+if(length(missing_packages) > 0) {
+stop(paste("install" , paste0(missing_packages, collapse =" , ") ))
+}
 ##############
 #### data load and procesing
 ##############
@@ -21,9 +24,9 @@ immortal_time <- 0.5
 ## drop the redundant column
 names(prelim.df) %<>% make.names
 prelim.df %<>% rename(fit.fail = Qualitative.Fit)
+prelim.df %<>% mutate(fit.fail = fit.fail == "Fail")
 prelim.df %<>% mutate_if( .predicate=is.character, factor)
-prelim.df %<>% mutate_at(vars(one_of("fit.fail","Days.Worn", "Sterilzations", "Donned")), as.integer  )
-prelim.df$fit.fail %<>% subtract(1L)
+prelim.df %<>% mutate_at(vars(one_of("fit.fail","Days.Worn", "Sterilizations", "Donned")), as.integer  )
 prelim.df %<>% mutate(left=if_else(fit.fail==1, immortal_time, as.numeric(Days.Worn)  ) , right=if_else(fit.fail==1, as.numeric(Days.Worn), as.numeric(max(Days.Worn )*3 )  )   )
 
 ##############
@@ -31,7 +34,7 @@ prelim.df %<>% mutate(left=if_else(fit.fail==1, immortal_time, as.numeric(Days.W
 ##############
 
 ## this is my preferred estimate
-cross_fit <- cgam(fit.fail ~ s.decr(Days.Worn) , family=binomial(), data=prelim.df )
+cross_fit <- cgam(fit.fail ~ s.incr(Days.Worn) , family=binomial(), data=prelim.df )
 dummy_data <- data.frame(Days.Worn = 4:20)
 dummy_data <- cbind(dummy_data, predict(cross_fit, newData=dummy_data, interval="confidence")[c("fit", "lower", "upper")] %>% as.data.frame )
 dummy_data %<>% filter(Days.Worn %in% c(5,10,15) )
@@ -42,14 +45,14 @@ dummy_data %<>% filter(Days.Worn %in% c(5,10,15) )
 ## red = smooth monotone decreasing (spline basis, constrained)
 ## blue = smooth no monotone requirement (spline bases)
 ## conclusion: extremely similar, observed fit failure pretty flat across time
-cross_fit <- cgam(fit.fail ~ decr(Days.Worn) , family=binomial(), data=prelim.df )
+cross_fit <- cgam(fit.fail ~ incr(Days.Worn) , family=binomial(), data=prelim.df )
 dummy_data <- data.frame(Days.Worn = 4:20)
 dummy_data <- cbind(dummy_data, predict(cross_fit, newData=dummy_data, interval="confidence")[c("fit", "lower", "upper")] %>% as.data.frame )
 plot(dummy_data$Days.Worn, dummy_data$fit , xlab="Days Used", ylab="Failure probability", ylim=c(0,1), xlim=c(4,20), type="b", pch=19)
 lines(dummy_data$Days.Worn, dummy_data$lower, lty=2)
 lines(dummy_data$Days.Worn, dummy_data$upper, lty=2)
 
-cross_fit <- cgam(fit.fail ~ s.decr(Days.Worn) , family=binomial(), data=prelim.df )
+cross_fit <- cgam(fit.fail ~ s.incr(Days.Worn) , family=binomial(), data=prelim.df )
 dummy_data <- data.frame(Days.Worn = 4:20)
 dummy_data <- cbind(dummy_data, predict(cross_fit, newData=dummy_data, interval="confidence")[c("fit", "lower", "upper")] %>% as.data.frame )
 points(dummy_data$Days.Worn, dummy_data$fit , col='red', type="b", pch=19)
@@ -76,7 +79,7 @@ lines(dummy_data$Days.Worn, dummy_data$upper, col='blue', lty=2)
 ## conclusion: survival model forces the early survival upwards
 npm_out <- icfit( Surv( left, right, type = "interval2") ~ 1, data = prelim.df, conf.int=TRUE, control = icfitControl(B=2000,seed=1234))
 fs_1 <- flexsurvreg(Surv(left, right, type="interval2")~1, data=prelim.df, dist="gengamma")
-cross_fit <- cgam(fit.fail ~ s.decr(Days.Worn) , family=binomial(), data=prelim.df )
+cross_fit <- cgam(I(1L-fit.fail) ~ s.decr(Days.Worn) , family=binomial(), data=prelim.df )
 # fs_2 <- flexsurvspline(Surv(left, right, type="interval2")~1, data=prelim.df, timescale="log", k=1L) ## opaque error
 
 
@@ -131,14 +134,14 @@ lines(km.ci(survfit(Surv(time=Days.Worn, event=fit.fail)~1, data=prelim.df) ), c
 ## 1: # steralizations doesn't matter conditional on number of days
 ## survival semi-para: 0.17 +- 0.27 log scale
 ## cross-sectional semi-para: .34 +- .34
-np_reg <- ic_sp(cbind(left, right)~Sterilzations, data=prelim.df, bs_samples = 1000  )
+np_reg <- ic_sp(cbind(left, right)~Sterilizations, data=prelim.df, bs_samples = 1000  )
 np_reg %>% summary
 
 cross_fit <- glm(fit.fail ~ ns(Days.Worn) , family=binomial(), data=prelim.df )
-cross_fit2 <- glm(fit.fail ~ ns(Days.Worn) +Sterilzations  , family=binomial(), data=prelim.df )
+cross_fit2 <- glm(fit.fail ~ ns(Days.Worn) +Sterilizations  , family=binomial(), data=prelim.df )
 anova(cross_fit2, cross_fit, test="LRT")
 cross_fit2 %>% summary
-glm(fit.fail ~ Sterilzations , family=binomial(), data=prelim.df ) %>% summary
+glm(fit.fail ~ Sterilizations , family=binomial(), data=prelim.df ) %>% summary
 
 
 ## 2: number of times donned doesn't matter
@@ -207,7 +210,7 @@ np_test3 <- ictest(Surv( left, right, type = "interval2") ~ Fits.well, data = pr
 # alt_np3 <- icfit( Surv( left, right, type = "interval2") ~ Fits.well, data = prelim.df, conf.int=TRUE, control = icfitControl(B=2000,seed=1234))
 # alt_np3 %>% plot(xlim=c(4,20)) # this plot is hard to control
 
-cross_fit2 <- cgam(fit.fail ~ s.decr(Days.Worn)*Fits.well  , family=binomial(), data=prelim.df )
+cross_fit2 <- cgam(I(1L-fit.fail) ~ s.decr(Days.Worn)*Fits.well  , family=binomial(), data=prelim.df )
 
 npm_out %>% plot(xlim=c(4,20))
 
@@ -250,7 +253,7 @@ fs3 <- flexsurvreg(Surv(left, right, type="interval2")~1, dist="gengamma", data=
 npm_out2 %>% plot( xlim=c(6,50) )
 lines(fs3, col="blue")
 
-cross_fit3 <- cgam(fit.fail ~ s.incr(Donned) , family=binomial(), data=prelim.df )
+cross_fit3 <- cgam(I(1L-fit.fail) ~ s.incr(Donned) , family=binomial(), data=prelim.df )
 dummy_data <- data.frame(Donned = 6:50)
 dummy_data <- cbind(dummy_data, predict(cross_fit3, newData=dummy_data, interval="confidence")[c("fit", "lower", "upper")] %>% as.data.frame )
 lines(dummy_data$Donned, dummy_data$fit , col='red', lwd=2)
@@ -286,11 +289,11 @@ prelim.df %>% mutate(Mask.quality=Mask.quality %in% c("Poor") ) %>% select(Mask.
 
 with(prelim.df  %>% mutate(Mask.quality=factor(!(Mask.quality %in% c("Poor")) , labels=c("Yes", "No" ) )), caret::confusionMatrix(reference=factor(fit.fail, labels=c("Yes", "No")), data=Mask.quality))
 
-# temp_t1 <- table1(~Sex + Title + respirator + Days.Worn + Sterilzations + Donned + I(Donned/Days.Worn ) +Fits.well + Mask.quality | factor(fit.fail, labels=c("Yes", "No"))  , data=prelim.df)
+# temp_t1 <- table1(~Sex + Title + respirator + Days.Worn + Sterilizations + Donned + I(Donned/Days.Worn ) +Fits.well + Mask.quality | factor(fit.fail, labels=c("Yes", "No"))  , data=prelim.df)
 
 factor_vars<- c('Sex' , 'Title' , 'respirator', 'Fits.well', 'Mask.quality'  )
 
-con_vars<- c( 'Days.Worn', 'Sterilzations', 'Donned',  'Uses.per.day' )
+con_vars<- c( 'Days.Worn', 'Sterilizations', 'Donned',  'Uses.per.day' )
 tab3 <- CreateTableOne(vars = c(con_vars,factor_vars) , strata = "fit.fail" , data = prelim.df%>%  mutate( Uses.per.day=Donned/Days.Worn ) , factorVars = factor_vars)
 
 temp <- print(tab3, showAllLevels = TRUE, contDigits=1)
