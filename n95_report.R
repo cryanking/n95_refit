@@ -294,27 +294,31 @@ with(prelim.df  %>% mutate(Mask.quality=factor(!(Mask.quality %in% c("Poor")) , 
 factor_vars<- c('Sex' , 'Title' , 'respirator', 'Fits.well', 'Mask.quality'  )
 
 con_vars<- c( 'Days.Worn', 'Sterilizations', 'Donned',  'Uses.per.day' )
-tab3 <- CreateTableOne(vars = c(con_vars,factor_vars) , strata = "fit.fail" , data = prelim.df%>%  mutate( Uses.per.day=Donned/Days.Worn ) , factorVars = factor_vars)
+non_vars <- c( 'Days.Worn', 'Sterilizations', 'Donned',  'Uses.per.day' )
+tab3 <- CreateTableOne(vars = c(con_vars,factor_vars) , strata = "fit.fail" , data = prelim.df%>%  mutate( Uses.per.day=Donned/Days.Worn ) %>% mutate(fit.fail=factor(fit.fail, labels=c("Pass", "Fail")) ) , factorVars = factor_vars )
+temp <- capture.output(x <- print(tab3 , showAllLevels = TRUE, contDigits=1, printToggle=FALSE, nonnormal = non_vars))
 
 temp <- print(tab3, showAllLevels = TRUE, contDigits=1)
 
 pdf(file="failure_prob.pdf")
-
+par( mar=c(4.1, 4.1, 1, 3.1) )
 cross_fit <- cgam(fit.fail ~ incr(Days.Worn) , family=binomial(), data=prelim.df )
 dummy_data <- data.frame(Days.Worn = 4:20)
 dummy_data <- cbind(dummy_data, predict(cross_fit, newData=dummy_data, interval="confidence")[c("fit", "lower", "upper")] %>% as.data.frame )
 
 
-temp_hist <- hist(prelim.df  %>% select(Days.Worn) %>% unlist ,breaks = seq(from=3.5, to=20.5), plot=T, axes=F, xlab=NULL, ylab=NULL, xlim=c(3.5,20) , main=NULL, col= rgb(0.6,1.0,1.0,alpha=0.5))
+temp_hist <- hist(prelim.df  %>% select(Days.Worn) %>% unlist ,breaks = seq(from=3.5, to=20.5), plot=T, axes=F, xlab=NULL, ylab=NULL, xlim=c(3.5,20) , main=NULL, col= rgb(0.6,1.0,1.0,alpha=0.5), border=rgb(0.6,1.0,1.0,alpha=0.5), freq=TRUE)
+
+axis(4)
 
 par(new=T)
 
-plot(dummy_data$Days.Worn, dummy_data$fit , xlab="Days worn", ylab="Failure probability", ylim=c(0,1), xlim=c(3.5,20), type="l", col="red", lwd=2)
-lines(dummy_data$Days.Worn, dummy_data$lower, lty=2, col="red", lwd=2)
-lines(dummy_data$Days.Worn, dummy_data$upper, lty=2, col="red", lwd=2)
+plot(dummy_data$Days.Worn, dummy_data$fit*100 , xlab="Days worn", ylab="Failure probability (%)", ylim=c(0,100), xlim=c(3.5,20), type="l", col="black", lwd=2)
+lines(dummy_data$Days.Worn, dummy_data$lower*100, lty=2, col="black", lwd=2)
+lines(dummy_data$Days.Worn, dummy_data$upper*100, lty=2, col="black", lwd=2)
 
 
-mtext(side=4, text="Frequency of Day", line=1)
+mtext(side=4, text="Count of Days Used", line=2)
 par(new=F)
 
 

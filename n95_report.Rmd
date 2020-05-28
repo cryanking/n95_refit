@@ -34,6 +34,7 @@ library("km.ci")
 library("flexsurv")
 library("bookdown")
 library("tableone")
+library("PropCIs")
 } else {
 source("n95_report.R")
 }
@@ -78,12 +79,19 @@ dummy_data <- cbind(dummy_data, predict(cross_fit, newData=dummy_data, interval=
 
 ```{r echo=FALSE, messages=FALSE, results='asis'}
 factor_vars<- c('Sex' , 'Title' , 'respirator', 'Fits.well', 'Mask.quality'  )
+non_vars <- c( 'Days.Worn', 'Sterilizations', 'Donned' )
+con_vars<- c( 'Days.Worn', 'Sterilizations', 'Donned' )
+tab3 <- CreateTableOne(vars = c(con_vars,factor_vars) , strata = "fit.fail" , data = prelim.df%>%  mutate(fit.fail=factor(fit.fail, labels=c("Pass", "Fail")) )  , factorVars = factor_vars)
+temp <- capture.output(x <- print(tab3 , showAllLevels = TRUE, contDigits=0, printToggle=FALSE, nonnormal=TRUE, exact=T))
 
-con_vars<- c( 'Days.Worn', 'Sterilizations', 'Donned',  'Uses.per.day' )
-tab3 <- CreateTableOne(vars = c(con_vars,factor_vars) , strata = "fit.fail" , data = prelim.df%>%  mutate( Uses.per.day=Donned/Days.Worn ) %>% mutate(fit.fail=factor(fit.fail, labels=c("Pass", "Fail")) ) , factorVars = factor_vars)
-temp <- capture.output(x <- print(tab3 , showAllLevels = TRUE, contDigits=1, printToggle=FALSE))
+tab2 <- CreateTableOne(vars ='Uses.per.day' , strata = "fit.fail" , data = prelim.df%>%  mutate( Uses.per.day=Donned/Days.Worn ) %>% mutate(fit.fail=factor(fit.fail, labels=c("Pass", "Fail")) )  )
+
+temp <- capture.output(x2<- print(tab2 , showAllLevels = TRUE, contDigits=1, printToggle=FALSE, nonnormal=FALSE, exact=T))
+
+x<- rbind(x[1:length(con_vars), ,drop=FALSE], x2[-1,,drop=FALSE], x[-c(1:length(con_vars)), ,drop=FALSE] )
+
 x <- x[,seq(ncol(x)-1)]
-    knitr::kable(x, caption="\\label{tab:desc}Descriptive statistics stratified by fit test failure")
+    knitr::kable(x, caption="\\label{tab:desc}Descriptive statistics stratified by fit test failure. P-values for quantitative variables by Mann-Whitney U, factor variables by Fisher's exact test.")
 ```
 
 Table \@ref(tab:desc) provides descriptive statistics.
@@ -101,7 +109,7 @@ par(mfrow=c(1,1))
 
 
 ```{r echo=FALSE, results='asis' }
-prelim.df %>% mutate(day_group = cut(Days.Worn, breaks=c(3, 5, 8, 12, 25)) ) %>% group_by(day_group) %>% summarize(n=n() , mean.failure=mean(fit.fail )%>% round(2), lower.conf=prop.test(x=sum(fit.fail), n=n())$conf.int[1]%>% round(2), upper.conf=prop.test(x=sum(fit.fail), n=n())$conf.int[2]%>% round(2) ) %>% {knitr::kable(x=.,format="latex", caption="\\label{tab:broken}Failure rates by duration worn")}
+prelim.df %>% mutate(day_group = cut(Days.Worn, breaks=c(3, 5, 8, 12, 25)) ) %>% group_by(day_group) %>% summarize(n=n() , mean.failure=mean(fit.fail )%>% round(2), lower.conf=scoreci(x=sum(fit.fail), n=n(), conf.level=0.95)$conf.int[1]%>% round(2), upper.conf=scoreci(x=sum(fit.fail), n=n(), conf.level=0.95)$conf.int[2]%>% round(2) ) %>% {knitr::kable(x=.,format="latex", caption="\\label{tab:broken}Failure rates by duration worn. Confidence intervals by Wilson's score method. ")}
 ```
 
 Figure \@ref(fig:basicsurvival) displays mask survival as a function of days worn using cross-sectional approaches.
