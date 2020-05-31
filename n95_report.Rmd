@@ -109,7 +109,7 @@ par(mfrow=c(1,1))
 
 
 ```{r echo=FALSE, results='asis' }
-prelim.df %>% mutate(day_group = cut(Days.Worn, breaks=c(0.5, 5, 8, 12, 61)) ) %>% group_by(day_group) %>% summarize(n=n() , mean.failure=mean(fit.fail )%>% round(2), lower.conf=scoreci(x=sum(fit.fail), n=n(), conf.level=0.95)$conf.int[1]%>% round(2), upper.conf=scoreci(x=sum(fit.fail), n=n(), conf.level=0.95)$conf.int[2]%>% round(2) ) %>% {knitr::kable(x=.,format="latex", caption="\\label{tab:broken}Failure fractions by duration worn. Confidence intervals by Wilson's score method. ")}
+prelim.df %>% mutate(day_group = cut(Days.Worn, breaks=c(0.5, 5, 8, 12, 61)) ) %>% group_by(day_group) %>% summarize(n=n() , mean.failure=mean(fit.fail )%>% round(2), lower.conf=PropCIs::scoreci(x=sum(fit.fail), n=n(), conf.level=0.95)$conf.int[1]%>% round(2), upper.conf=PropCIs::scoreci(x=sum(fit.fail), n=n(), conf.level=0.95)$conf.int[2]%>% round(2) ) %>% {knitr::kable(x=.,format="latex", caption="\\label{tab:broken}Failure fractions by duration worn. Confidence intervals by Wilson's score method. ")}
 ```
 
 Figure \@ref(fig:basicsurvival) displays mask survival as a function of days worn using cross-sectional approaches.

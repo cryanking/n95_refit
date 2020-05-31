@@ -194,20 +194,6 @@ np_test3 <- ictest(Surv( left, right, type = "interval2") ~ Fits.well, data = pr
 np_test3 <- ictest(Surv( left, right, type = "interval2") ~ Fits.well, data = prelim.df, method="wsr.mc")
 
 
-#         Asymptotic Logrank two-sample test (permutation form), Sun's scores
-# 
-# data:  Surv(left, right, type = "interval2") by Fits.well 
-# Z = 1.9397, p-value = 0.05242
-# alternative hypothesis: survival distributions not equal
-# 
-#                n Score Statistic*
-# Fits.well=No  10         2.977042
-# Fits.well=Yes 38        -2.977042
-# * like Obs-Exp, positive implies earlier failures than expected
-# p-value = 0.1452
-# p-value estimated from  Monte Carlo replications
-# and 999 permutation resamples
-
 ## plot the difference
 ## no obvious change in time, both are pretty flat. it's just an offset
 # alt_np3 <- icfit( Surv( left, right, type = "interval2") ~ Fits.well, data = prelim.df, conf.int=TRUE, control = icfitControl(B=2000,seed=1234))
@@ -256,7 +242,8 @@ fs3 <- flexsurvreg(Surv(left, right, type="interval2")~1, dist="gengamma", data=
 npm_out2 %>% plot( xlim=c(2,50) )
 lines(fs3, col="blue")
 
-cross_fit3 <- cgam(I(1L-fit.fail) ~ s.decr(Uses) , family=binomial(), data=prelim.df )
+## for purposes of this plot, uses are only drawn out to 50. the right outlier makes the spline fit unstable
+cross_fit3 <- cgam(I(1L-fit.fail) ~ s.decr(Uses) , family=binomial(), data=prelim.df %>% mutate(Uses = pmin(Uses, 70)) )
 dummy_data <- data.frame(Uses = 6:50)
 dummy_data <- cbind(dummy_data, predict(cross_fit3, newData=dummy_data, interval="confidence")[c("fit", "lower", "upper")] %>% as.data.frame )
 lines(dummy_data$Uses, dummy_data$fit , col='red', lwd=2)
@@ -329,7 +316,7 @@ dev.off()
 
 prelim.df %>% mutate(broken_days = cut(Days.Worn, breaks=c(1, 5, 8, 12, 25)) ) %>% select(broken_days) %>% table
 
-prelim.df %>% mutate(broken_days = cut(Days.Worn, breaks=c(1, 5, 8, 12, 25)) ) %>% group_by(broken_days) %>% summarize(n=n() , mean.failure=mean(fit.fail )%>% round(2), lcb=prop.test(x=sum(fit.fail), n=n())$conf.int[1]%>% round(2), ucb=prop.test(x=sum(fit.fail), n=n())$conf.int[2]%>% round(2) ) %>% {knitr::kable(x=.,format="html")}
+# prelim.df %>% mutate(broken_days = cut(Days.Worn, breaks=c(1, 5, 8, 12, 25)) ) %>% group_by(broken_days) %>% summarize(n=n() , mean.failure=mean(fit.fail )%>% round(2), lcb=prop.test(x=sum(fit.fail), n=n())$conf.int[1]%>% round(2), ucb=prop.test(x=sum(fit.fail), n=n())$conf.int[2]%>% round(2) ) %>% {knitr::kable(x=.,format="html")}
 
 
 
