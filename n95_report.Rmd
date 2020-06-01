@@ -10,9 +10,9 @@ author:
  - "Jooyoung Maeng, MD"
  - "Ziyan Song, MD"
  - "Ramya Baddigam, MD"
+ - "C Ryan King, MD PhD"
  - "Molly McCormick, MD"
  - "Ivan Kangrga, MD PhD"
- - "C Ryan King, MD PhD"
  - "Ryan Guffey, MD"
 
 date: "`r format(Sys.time(), '%B %d, %Y')`"
@@ -44,8 +44,7 @@ source("n95_report.R")
 knitr::opts_chunk$set(dev = 'pdf')
 ```
 
-## Note
-This is a work in progress.
+
 
 # Modeling assumptions and strategy
 The sample is generated cross-sectionally, but can also be thought of as survival data.
@@ -58,8 +57,9 @@ Non-parametric or semi-parametric estimators which do not assume a functional fo
 However, non-parametric estimates (NPMLE) for interval censored data are not unique; in some regions any baseline hazard matching continuity requirements is equally supported by the data.
 Confidence intervals for interval censored baseline hazards are an active area of research [@wang_flexible_2016; @zhao_simultaneous_2019], with completely non-parametric estimation methods yielding slow $n^\frac{1}{3}$ convergence without a known asymptotic law [@groeneboom_information_1992].
 Several semi-parametric methods have recently been shown to have $n^\frac{1}{2}$ convergence with Gaussian asymptotics making them amenable to bootstrapping [@wang_flexible_2016; @bouaziz_regression_2018; @zhao_simultaneous_2019; @li_adaptive_2019].
+Proportional hazards regression was used to model factors other than duration of use in this framework.
 
-Modeling the data as cross-sectional observations of fit passing versus failure as a function of time is also supportable because no participant-mask pair is observed more than once and there is minimal information to support extrapolation from before the earliest test time (4 days).
+Modeling the data as cross-sectional observations of fit passing versus failure as a function of time is also supportable because no participant-mask pair is observed more than once and there is minimal information to support extrapolation from before the earliest test time.
 Integrated b-splines and constrained step functions allow modeling the failure log-odds as a monotone increasing function of time in a traditional logistic regression analysis.
 This approach yields much better studied statistical behavior; however, given the modest sample size the probability statements produced should be taken as approximate.
 The cross-sectional model does not encode any behavior before the earliest test time (e.g. that all masks initially fit).
@@ -91,6 +91,7 @@ temp <- capture.output(x2<- print(tab2 , showAllLevels = TRUE, contDigits=1, pri
 x<- rbind(x[1:length(con_vars), ,drop=FALSE], x2[-1,,drop=FALSE], x[-c(1:length(con_vars)), ,drop=FALSE] )
 
 x <- x[,seq(ncol(x)-1)]
+rownames(x) <- gsub(rownames(x), pattern=".", fixed=TRUE, replacement=" " )
     knitr::kable(x, caption="\\label{tab:desc}Descriptive statistics stratified by fit test failure. P-values for quantitative variables by Mann-Whitney U, factor variables by Fisher's exact test.")
 ```
 
@@ -192,6 +193,7 @@ lines(km.ci(survfit(Surv(time=Days.Worn, event=fit.fail)~1, data=prelim.df) ), c
 
 Similar analysis for failure by number of times donned is shown in Figure \@ref(fig:comparedon).
 The failure fraction is similarly flat.
+Number of times used was fairly correlated with number of days worn (spearman correlation = `r  with(prelim.df, cor(Uses, Days.Worn, method="spearman") )%>% round(2)`, p `r with(prelim.df, wilcox.test(Uses, Days.Worn))$p.value %>% format.pval(eps=.001)`).
 
 
 ```{r echo=FALSE, fig.show="hold", warning=FALSE , message=FALSE, fig.keep="last", fig.cap="\\label{fig:comparedon}Comparison of survival and cross sectional models for mask failure by number of times used. Black = non-parametric interval censored survival (grey regions = indeterminate MLE), Red = cross-sectional analysis, Blue = generalized gamma survival"}
@@ -231,12 +233,24 @@ The number of times donned per day was found to have a negligible effect with mo
 
 
 ```{r echo=FALSE}
-local_data <- prelim.df %>% group_by(Fits.well) %>% summarize(mfit=mean(fit.fail ), nfit=n())
+local_data <- prelim.df %>% group_by(Fits.well) %>% summarize(mfit=mean(fit.fail ), nfit=n(), lower=PropCIs::scoreci(x=sum(fit.fail), n=n(), conf.level=0.95)$conf.int[1], upper=PropCIs::scoreci(x=sum(fit.fail), n=n(), conf.level=0.95)$conf.int[2] )
+local_data2 <- prelim.df %>%mutate(Fits.well = Fits.well == "No") %>% group_by(fit.fail) %>% summarize(mfit=mean(Fits.well ), nfit=n(), lower=PropCIs::scoreci(x=sum(Fits.well), n=n(), conf.level=0.95)$conf.int[1], upper=PropCIs::scoreci(x=sum(Fits.well), n=n(), conf.level=0.95)$conf.int[2] )
+temp_conf <- with(prelim.df, caret::confusionMatrix(reference=factor(!fit.fail, labels=c("Yes", "No")), data=Fits.well %>% fct_recode(Yes="No", No="Yes" )))
+local_data3 <- prelim.df %>% mutate(qual2=Mask.quality %in% c("Like New", "Good") ) %>% group_by(fit.fail) %>% summarize(mfit=mean(qual2 ), nfit=n(), lower=PropCIs::scoreci(x=sum(qual2), n=n(), conf.level=0.95)$conf.int[1], upper=PropCIs::scoreci(x=sum(qual2), n=n(), conf.level=0.95)$conf.int[2] )
+local_data4 <- prelim.df %>% mutate(qual2=Mask.quality %in% c("Like New") ) %>% select(fit.fail, qual2 ) %>% table %>% fisher.test
 ```
 Although imperfect, participants were able to somewhat discriminate poorly fitting masks.
 Figure \@ref(fig:split) displays the survival stratified by perceived fit.
-Among the `r local_data[1,3]` participants reporting a poor fit, `r local_data[1,2] %>% round(2) %>% multiply_by(100)`% failed the fit test.
-Among the `r local_data[2,3]` participants reporting a good fit, `r local_data[2,2] %>% round(2)%>% multiply_by(100)`% failed the fit test (p= `r fisher.test(prelim.df$Fits.well, prelim.df$fit.fail) %>% extract2("p.value") %>% format.pval(digits=2)` by Fisher's exact test).
+Among the `r local_data[1,3]` participants reporting a poor fit, `r local_data[1,2] %>% round(2) %>% multiply_by(100)`% failed the fit test (95% CI `r local_data[1,4]%>% round(2) %>% multiply_by(100)` to `r local_data[1,5]%>% round(2) %>% multiply_by(100)`).
+Among the `r local_data[2,3]` participants reporting a good fit, `r local_data[2,2] %>% round(2)%>% multiply_by(100)`% failed the fit test (95% CI `r local_data[2,4]%>% round(2) %>% multiply_by(100)` to `r local_data[2,5]%>% round(2) %>% multiply_by(100)`, p `r fisher.test(prelim.df$Fits.well, prelim.df$fit.fail) %>% extract2("p.value") %>% format.pval(digits=2)` by Fisher's exact test).
+Reversing the direction of conditioning, among those passing the fit test, `r local_data2[1,2] %>% round(2) %>% multiply_by(100)`% believed their mask was poorly fitting (95% CI `r local_data2[1,4]%>% round(2) %>% multiply_by(100)` to `r local_data2[1,5]%>% round(2) %>% multiply_by(100)`). 
+Among those failing the fit test, `r local_data2[2,2] %>% round(2)%>% multiply_by(100)`% believed their mask to be poorly fitting (95% CI `r local_data2[2,4]%>% round(2) %>% multiply_by(100)` to `r local_data2[2,5]%>% round(2) %>% multiply_by(100)`).
+The user's impression had a sensitivity of `r temp_conf[['byClass']]['Sensitivity'] %>% multiply_by(100) %>% round`%, specificity of `r temp_conf[['byClass']]['Specificity'] %>% multiply_by(100) %>% round`%, and positive and negative predictive values of  `r temp_conf[['byClass']]['Pos Pred Value'] %>% multiply_by(100) %>% round`% and  `r temp_conf[['byClass']]['Neg Pred Value'] %>% multiply_by(100) %>% round`%.
+Test administrators also judged mask quality.
+As seen in Table \@ref(tab:desc), very few masks were judged to be poor quality, but "Like New" and "Good" quality masks were `r local_data3[2,2] %>% round(2)%>% multiply_by(100)`% of the failed masks (95% CI `r local_data3[2,4]%>% round(2) %>% multiply_by(100)` to `r local_data3[2,5]%>% round(2) %>% multiply_by(100)`).
+"Like New" masks were much less likely to fail, OR = `r local_data4$estimate %>% round(1)` (95% CI =`r local_data4$conf.int[1] %>% round(1)` to `r local_data4$conf.int[2] %>% round(1)`, p `r local_data4$p.value%>% format.pval(eps=0.001)`).
+
+
 
 
 ```{r echo=FALSE, fig.show="hold", warning=FALSE , message=FALSE, fig.keep="last", fig.cap="\\label{fig:split}Comparison of mask failure by days worn stratified by user perceived fit. Black = entire study non-parametric interval censored survival (grey regions = indeterminate MLE), Red= smooth cross-sectional model among self-perceived good fit, Blue = smooth cross-sectional model among self-perceived bad fit "}
@@ -270,9 +284,6 @@ If clearly failed masks were removed from the population before the experiment, 
 However, during the period of the study N95 mask shortages were critical, and discarding masks appears to have been uncommon.
 Because few individuals trained in mask fitting were available, re-testing was not readily available outside of our initiative, and participants had little ability to verify that a mask fit had failed.
 As seen in Figure \@ref(fig:hists), individuals continued to use masks for long durations even before sterilization was available due to these shortages and lack of testing availability.
-
-Additional data is urgently needed to address the potential for early mask failures, and potential prediction of early mask failure.
-This would allow rational re-fit testing protocols with much less burden than systematically retesting all healthcare workers exposed to aerosols.
 
 # References
 

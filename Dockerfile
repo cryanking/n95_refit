@@ -39,12 +39,11 @@ RUN install2.r --error \
     tableone \ 
     PropCIs
     
-## add git clone and initial exec here - maybe a dummy compilation that pulls all the tex packages
 WORKDIR /n95_refit
 
-RUN git clone git@github.com:cryanking/n95_refit.git /n95_refit
+RUN git clone https://github.com/cryanking/n95_refit.git /n95_refit
+
+RUN R -e 'rmarkdown::render("/n95_refit/n95_report.Rmd")' 
 
 
-ENTRYPOINT ["/usr/local/bin/R"]
 
-CMD ["-e 'rmarkdown::render(\"n95_report.Rmd\") '"]

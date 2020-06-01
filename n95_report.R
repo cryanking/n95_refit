@@ -268,7 +268,7 @@ prop.test(x=temp[1], n=temp[2]) %>% extract2("conf.int") %>% multiply_by(100) %>
 
 # PropCIs::scoreci(x=temp[1], n=temp[2], conf.level=0.95) %>% extract2("conf.int") %>% multiply_by(100) %>% round
 
-with(prelim.df, cor(Uses, Days.Worn) )
+with(prelim.df, cor(Uses, Days.Worn, method="spearman") )
 with(prelim.df, summary(lm(Uses~ Days.Worn) ))
 
 
