@@ -95,9 +95,9 @@ lines(dummy_data$Days.Worn, dummy_data$fit , col='blue', lwd=2)
 lines(dummy_data$Days.Worn, dummy_data$lower, col='blue', lty=2)
 lines(dummy_data$Days.Worn, dummy_data$upper, col='blue', lty=2)
 
-##ICsurv method - no direct method for se of output (though I think I could get it), is similar
+##ICsurv method, is similar
 if(FALSE) {
-exp_res<-fast.PH.ICsurv.EM(d1=rep(0L, nrow(prelim.df)), d3=rep(0L, nrow(prelim.df)), d2=rep(1L, nrow(prelim.df)), Li=prelim.df$left, Ri=prelim.df$right, Xp=matrix(runif(nrow(prelim.df)), ncol=1) , n.int=3, order=3, g0=rep(1, 3+3) , b0=rep(0,1L), tol=0.001, equal=TRUE, t.seq=4:20)
+exp_res<-ICsurv::fast.PH.ICsurv.EM(d1=rep(0L, nrow(prelim.df)), d3=rep(0L, nrow(prelim.df)), d2=rep(1L, nrow(prelim.df)), Li=prelim.df$left, Ri=prelim.df$right, Xp=matrix(runif(nrow(prelim.df)), ncol=1) , n.int=3, order=3, g0=rep(1, 3+3) , b0=rep(0,1L), tol=0.001, equal=TRUE, t.seq=4:20)
 
 points(dummy_data$Days.Worn, 1.-exp_res$hz, col="green", type="b", pch=19)
 }

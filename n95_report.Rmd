@@ -73,7 +73,7 @@ Because this was an exploratory study, no pre-determined p-value threshold was a
 # Results
 ```{r echo=FALSE}
 cross_fit <- cgam(fit.fail ~ s.incr(Days.Worn) , family=binomial(), data=prelim.df )
-dummy_data <- data.frame(Days.Worn = c(5,10,15))
+dummy_data <- data.frame(Days.Worn = c(4,10,15))
 dummy_data <- cbind(dummy_data, predict(cross_fit, newData=dummy_data, interval="confidence")[c("fit", "lower", "upper")] %>% as.data.frame )
 ```
 
