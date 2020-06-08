@@ -70,6 +70,7 @@ Factors beyond use duration were analyzed with proportional hazards regression (
 Calculations were performed in R 3.6.3 with package flexsurv [@jackson_flexsurv_2016] for parametric survival modeling, icenReg [@anderson-bergman_icenreg_2017] for non-parametric survival modeling, and cgam [@liao_cgam_2019] for monotone logistic regression. 
 Reported confidence intervals are at the 0.95 level.
 Because this was an exploratory study, no pre-determined p-value threshold was applied.
+Code and data to recreate this report can be found at https://github.com/cryanking/n95_refit
 
 # Results
 ```{r echo=FALSE}
