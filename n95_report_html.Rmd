@@ -3,6 +3,7 @@ output:
   bookdown::html_document2:
     fig_caption: true
     toc: false
+    self_contained: no
 title: "Web Appendix for Probability of Fit Failure with Reuse of N95 Respirators"
 author: 
  - Bruno Maranhao, MD PhD
@@ -17,6 +18,7 @@ author:
 
 date: "`r format(Sys.time(), '%B %d, %Y')`"
 bibliography: n95.bib
+
 ---
 
 ```{r echo=FALSE, message=FALSE, results='hide'}
@@ -41,7 +43,8 @@ source("n95_report.R")
 ```
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(dev = 'svg')
+library('Cairo')
+knitr::opts_chunk$set(dev = 'CairoSVG')
 ```
 
 
