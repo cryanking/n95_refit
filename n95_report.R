@@ -7,6 +7,7 @@ library(icenReg)
 library("km.ci")
 library(flexsurv)
 library(tableone)
+set.seed(101)
 
 missing_packages <- setdiff(c("caret", "tableone", "rmarkdown", "knitr", "bookdown") , rownames(installed.packages() ) ) 
 
